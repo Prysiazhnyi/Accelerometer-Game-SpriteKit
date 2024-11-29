@@ -77,7 +77,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
 
         for (row, line) in lines.reversed().enumerated() {
             for (column, letter) in line.enumerated() {
-                let position = CGPoint(x: (64 * column) + 32, y: (64 * row) + 32)
+                let position = CGPoint(x: (64 * column) + 32, y: (64 * row) - 32)
 
                 if letter == "x" {
                     // load wall
