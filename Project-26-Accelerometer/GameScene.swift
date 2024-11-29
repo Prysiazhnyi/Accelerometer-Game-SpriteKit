@@ -15,6 +15,7 @@ enum CollisionTypes: UInt32 {
     case star = 4
     case vortex = 8
     case finish = 16
+    case teleport = 32
 }
 
 class GameScene: SKScene, SKPhysicsContactDelegate {
@@ -32,6 +33,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     }
     
     var isGameOver = false
+    var freePositions = [CGPoint]()
     
     override func didMove(to view: SKView) {
         
@@ -119,8 +121,23 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                     node.physicsBody?.collisionBitMask = 0
                     node.position = position
                     addChild(node)
+                } else if letter == "g"  {
+                    // load teleport
+                    let node = SKSpriteNode(imageNamed: "teleport")
+                    node.name = "teleport"
+                   //node.physicsBody = SKPhysicsBody(rectangleOf: node.size)
+                    node.physicsBody = SKPhysicsBody(circleOfRadius: node.size.width / 2)
+                    node.physicsBody?.isDynamic = false
+
+                    // Устанавливаем уникальную категорию для телепорта
+                    node.physicsBody?.categoryBitMask = CollisionTypes.vortex.rawValue // Или создайте новую категорию: .teleport
+                    node.physicsBody?.contactTestBitMask = CollisionTypes.player.rawValue
+                    node.physicsBody?.collisionBitMask = 0 // Без физических столкновений
+                    node.position = position
+                    addChild(node)
                 } else if letter == " " {
-                    // this is an empty space – do nothing!
+                    // Пустая клетка: добавляем позицию в массив свободных позиций
+                    freePositions.append(position)
                 } else {
                     fatalError("Unknown level letter: \(letter)")
                 }
@@ -189,12 +206,12 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             player.physicsBody?.isDynamic = false
             isGameOver = true
             score -= 1
-
+            
             let move = SKAction.move(to: node.position, duration: 0.25)
             let scale = SKAction.scale(to: 0.0001, duration: 0.25)
             let remove = SKAction.removeFromParent()
             let sequence = SKAction.sequence([move, scale, remove])
-
+            
             player.run(sequence) { [weak self] in
                 self?.createPlayer()
                 self?.isGameOver = false
@@ -204,6 +221,24 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             score += 1
         } else if node.name == "finish" {
             // next level?
+        } else if node.name == "teleport" {
+            // Логика для телепорта
+            // Логика для телепортации
+                 if let physicsBody = player.physicsBody {
+                     // Сбрасываем скорость игрока и его направление
+                     physicsBody.velocity = .zero
+                     // Находим случайную свободную позицию для телепортации
+                     if let randomPosition = freePositions.randomElement() {
+                         // Эффект исчезновения и появления
+                         let fadeOut = SKAction.fadeOut(withDuration: 0.25)
+                         let moveToRandom = SKAction.move(to: randomPosition, duration: 0.5)
+                         let fadeIn = SKAction.fadeIn(withDuration: 0.25)
+                         let sequence = SKAction.sequence([fadeOut, moveToRandom, fadeIn])
+                         
+                         // Перемещаем игрока на новое место
+                         player.run(sequence)
+                }
+            }
         }
     }
 }
