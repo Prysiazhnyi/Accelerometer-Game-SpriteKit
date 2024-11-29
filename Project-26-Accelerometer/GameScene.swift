@@ -8,6 +8,7 @@
 import CoreMotion
 import SpriteKit
 import GameplayKit
+import AVFoundation
 
 enum CollisionTypes: UInt32 {
     case player = 1
@@ -25,7 +26,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     var motionManager: CMMotionManager!
     
     var scoreLabel: SKLabelNode!
-
+    
     var score = 0 {
         didSet {
             scoreLabel.text = "Score: \(score)"
@@ -35,8 +36,12 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     var isGameOver = false
     var freePositions = [CGPoint]()
     var level = 1
+    let maxLevel = 3
+    
+    var audioPlayer: AVAudioPlayer?
     
     override func didMove(to view: SKView) {
+        playBackgroundMusic(named: "backgroundMusic.mp3")
         
         let background = SKSpriteNode(imageNamed: "background.jpg")
         background.position = CGPoint(x: 512, y: 384)
@@ -60,30 +65,29 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         addChild(scoreLabel)
         
         physicsWorld.contactDelegate = self
-        }
+    }
     
     func loadLevel() {
         print("loadLevel - \(level)")
         guard let levelURL = Bundle.main.url(forResource: "level\(level)", withExtension: "txt") else {
-            level = 1
             fatalError("Could not find level1.txt in the app bundle.")
             
         }
         guard let levelString = try? String(contentsOf: levelURL) else {
             fatalError("Could not load level1.txt from the app bundle.")
         }
-
+        
         let lines = levelString.components(separatedBy: "\n")
-
+        
         for (row, line) in lines.reversed().enumerated() {
             for (column, letter) in line.enumerated() {
                 let position = CGPoint(x: (64 * column) + 32, y: (64 * row) - 32)
-
+                
                 if letter == "x" {
                     // load wall
                     let node = SKSpriteNode(imageNamed: "block")
                     node.position = position
-
+                    
                     node.physicsBody = SKPhysicsBody(rectangleOf: node.size)
                     node.physicsBody?.categoryBitMask = CollisionTypes.wall.rawValue
                     node.physicsBody?.isDynamic = false
@@ -96,7 +100,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                     node.run(SKAction.repeatForever(SKAction.rotate(byAngle: .pi, duration: 1)))
                     node.physicsBody = SKPhysicsBody(circleOfRadius: node.size.width / 2)
                     node.physicsBody?.isDynamic = false
-
+                    
                     node.physicsBody?.categoryBitMask = CollisionTypes.vortex.rawValue
                     node.physicsBody?.contactTestBitMask = CollisionTypes.player.rawValue
                     node.physicsBody?.collisionBitMask = 0
@@ -107,7 +111,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                     node.name = "star"
                     node.physicsBody = SKPhysicsBody(circleOfRadius: node.size.width / 2)
                     node.physicsBody?.isDynamic = false
-
+                    
                     node.physicsBody?.categoryBitMask = CollisionTypes.star.rawValue
                     node.physicsBody?.contactTestBitMask = CollisionTypes.player.rawValue
                     node.physicsBody?.collisionBitMask = 0
@@ -119,7 +123,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                     node.name = "finish"
                     node.physicsBody = SKPhysicsBody(circleOfRadius: node.size.width / 2)
                     node.physicsBody?.isDynamic = false
-
+                    
                     node.physicsBody?.categoryBitMask = CollisionTypes.finish.rawValue
                     node.physicsBody?.contactTestBitMask = CollisionTypes.player.rawValue
                     node.physicsBody?.collisionBitMask = 0
@@ -129,10 +133,10 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                     // load teleport
                     let node = SKSpriteNode(imageNamed: "teleport")
                     node.name = "teleport"
-                   //node.physicsBody = SKPhysicsBody(rectangleOf: node.size)
+                    //node.physicsBody = SKPhysicsBody(rectangleOf: node.size)
                     node.physicsBody = SKPhysicsBody(circleOfRadius: node.size.width / 2)
                     node.physicsBody?.isDynamic = false
-
+                    
                     // Устанавливаем уникальную категорию для телепорта
                     node.physicsBody?.categoryBitMask = CollisionTypes.vortex.rawValue // Или создайте новую категорию: .teleport
                     node.physicsBody?.contactTestBitMask = CollisionTypes.player.rawValue
@@ -148,7 +152,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             }
         }
     }
-
+    
     func createPlayer() {
         player = SKSpriteNode(imageNamed: "player")
         player.position = CGPoint(x: 96, y: 672)
@@ -156,7 +160,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         player.physicsBody = SKPhysicsBody(circleOfRadius: player.size.width / 2)
         player.physicsBody?.allowsRotation = false
         player.physicsBody?.linearDamping = 0.5
-
+        
         player.physicsBody?.categoryBitMask = CollisionTypes.player.rawValue
         player.physicsBody?.contactTestBitMask = CollisionTypes.star.rawValue | CollisionTypes.vortex.rawValue | CollisionTypes.finish.rawValue
         player.physicsBody?.collisionBitMask = CollisionTypes.wall.rawValue
@@ -175,14 +179,14 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                 // Перезапускаем игру, если нажата кнопка
                 newGame()
                 // стоп музыка
-//                func stopBackgroundMusic() {
-//                    audioPlayer?.stop()
-//                }
+                func stopBackgroundMusic() {
+                    audioPlayer?.stop()
+                }
             }
         }
         
     }
-
+    
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
@@ -195,23 +199,23 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     override func update(_ currentTime: TimeInterval) {
         guard isGameOver == false else { return }
-
-        #if targetEnvironment(simulator)
-            if let currentTouch = lastTouchPosition {
-                let diff = CGPoint(x: currentTouch.x - player.position.x, y: currentTouch.y - player.position.y)
-                physicsWorld.gravity = CGVector(dx: diff.x / 100, dy: diff.y / 100)
-            }
-        #else
-            if let accelerometerData = motionManager.accelerometerData {
-                physicsWorld.gravity = CGVector(dx: accelerometerData.acceleration.y * -50, dy: accelerometerData.acceleration.x * 50)
-            }
-        #endif
+        
+#if targetEnvironment(simulator)
+        if let currentTouch = lastTouchPosition {
+            let diff = CGPoint(x: currentTouch.x - player.position.x, y: currentTouch.y - player.position.y)
+            physicsWorld.gravity = CGVector(dx: diff.x / 100, dy: diff.y / 100)
+        }
+#else
+        if let accelerometerData = motionManager.accelerometerData {
+            physicsWorld.gravity = CGVector(dx: accelerometerData.acceleration.y * -50, dy: accelerometerData.acceleration.x * 50)
+        }
+#endif
     }
     
     func didBegin(_ contact: SKPhysicsContact) {
         guard let nodeA = contact.bodyA.node else { return }
         guard let nodeB = contact.bodyB.node else { return }
-
+        
         if nodeA == player {
             playerCollided(with: nodeB)
         } else if nodeB == player {
@@ -239,33 +243,37 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             score += 1
         } else if node.name == "finish" {
             
-                    isGameOver = true
-                    player.physicsBody?.isDynamic = false
-                    level += 1
-                    // Эффект исчезновения и появления
-                    let move = SKAction.move(to: node.position, duration: 0.25)
-                    let scale = SKAction.scale(to: 0.0001, duration: 0.25)
-                    let remove = SKAction.removeFromParent()
-                    let sequence = SKAction.sequence([move, scale, remove])
-                    
+            isGameOver = true
+            player.physicsBody?.isDynamic = false
+            if level < maxLevel {
+                level += 1
+            } else {
+                level = 1
+            }
+            // Эффект исчезновения и появления
+            let move = SKAction.move(to: node.position, duration: 0.25)
+            let scale = SKAction.scale(to: 0.0001, duration: 0.25)
+            let remove = SKAction.removeFromParent()
+            let sequence = SKAction.sequence([move, scale, remove])
+            
             player.run(sequence) {
                 self.showCustomAlert() // Показать алерт только после завершения анимации
             }
         } else if node.name == "teleport" {
             // Логика для телепорта
-                 if let physicsBody = player.physicsBody {
-                     // Сбрасываем скорость игрока и его направление
-                     physicsBody.velocity = .zero
-                     // Находим случайную свободную позицию для телепортации
-                     if let randomPosition = freePositions.randomElement() {
-                         // Эффект исчезновения и появления
-                         let fadeOut = SKAction.fadeOut(withDuration: 0.25)
-                         let moveToRandom = SKAction.move(to: randomPosition, duration: 0.5)
-                         let fadeIn = SKAction.fadeIn(withDuration: 0.25)
-                         let sequence = SKAction.sequence([fadeOut, moveToRandom, fadeIn])
-                         
-                         // Перемещаем игрока на новое место
-                         player.run(sequence)
+            if let physicsBody = player.physicsBody {
+                // Сбрасываем скорость игрока и его направление
+                physicsBody.velocity = .zero
+                // Находим случайную свободную позицию для телепортации
+                if let randomPosition = freePositions.randomElement() {
+                    // Эффект исчезновения и появления
+                    let fadeOut = SKAction.fadeOut(withDuration: 0.25)
+                    let moveToRandom = SKAction.move(to: randomPosition, duration: 0.5)
+                    let fadeIn = SKAction.fadeIn(withDuration: 0.25)
+                    let sequence = SKAction.sequence([fadeOut, moveToRandom, fadeIn])
+                    
+                    // Перемещаем игрока на новое место
+                    player.run(sequence)
                 }
             }
         }
@@ -305,7 +313,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         // Добавляем текст на кнопку
         let buttonText = SKLabelNode(fontNamed: "Chalkduster")
         buttonText.fontSize = 20
-        buttonText.text = "Start Next level\(level)"
+        buttonText.text = "Start Next level \(level)"
         buttonText.position = CGPoint(x: 0, y: 0)
         buttonText.zPosition = 1002
         button.addChild(buttonText)
@@ -316,9 +324,23 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         let newScene = GameScene(size: self.size)  // Новый экземпляр GameScene
         newScene.level = self.level  // Передаем текущий уровень
         newScene.scaleMode = self.scaleMode
-
+        
         let transition = SKTransition.fade(withDuration: 1.0)
         self.view?.presentScene(newScene, transition: transition)
     }
-
+    
+    func playBackgroundMusic(named filename: String) {
+        guard let url = Bundle.main.url(forResource: filename, withExtension: nil) else {
+            print("Файл \(filename) не найден в проекте.")
+            return
+        }
+        
+        do {
+            audioPlayer = try AVAudioPlayer(contentsOf: url)
+            audioPlayer?.numberOfLoops = -1 // Бесконечное воспроизведение
+            audioPlayer?.play()
+        } catch {
+            print("Не удалось воспроизвести музыку: \(error.localizedDescription)")
+        }
+    }
 }
