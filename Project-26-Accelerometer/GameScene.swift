@@ -34,6 +34,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     var isGameOver = false
     var freePositions = [CGPoint]()
+    var level = 1
     
     override func didMove(to view: SKView) {
         
@@ -62,8 +63,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         }
     
     func loadLevel() {
-        guard let levelURL = Bundle.main.url(forResource: "level1", withExtension: "txt") else {
+        print("loadLevel - \(level)")
+        guard let levelURL = Bundle.main.url(forResource: "level\(level)", withExtension: "txt") else {
+            level = 1
             fatalError("Could not find level1.txt in the app bundle.")
+            
         }
         guard let levelString = try? String(contentsOf: levelURL) else {
             fatalError("Could not load level1.txt from the app bundle.")
@@ -163,6 +167,20 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         guard let touch = touches.first else { return }
         let location = touch.location(in: self)
         lastTouchPosition = location
+        
+        if isGameOver {
+            let hitNodes = nodes(at: location).filter { $0.name == "startNewGameButton" }
+            
+            if let _ = hitNodes.first {
+                // Перезапускаем игру, если нажата кнопка
+                newGame()
+                // стоп музыка
+//                func stopBackgroundMusic() {
+//                    audioPlayer?.stop()
+//                }
+            }
+        }
+        
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -220,10 +238,21 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             node.removeFromParent()
             score += 1
         } else if node.name == "finish" {
-            // next level?
+            
+                    isGameOver = true
+                    player.physicsBody?.isDynamic = false
+                    level += 1
+                    // Эффект исчезновения и появления
+                    let move = SKAction.move(to: node.position, duration: 0.25)
+                    let scale = SKAction.scale(to: 0.0001, duration: 0.25)
+                    let remove = SKAction.removeFromParent()
+                    let sequence = SKAction.sequence([move, scale, remove])
+                    
+            player.run(sequence) {
+                self.showCustomAlert() // Показать алерт только после завершения анимации
+            }
         } else if node.name == "teleport" {
             // Логика для телепорта
-            // Логика для телепортации
                  if let physicsBody = player.physicsBody {
                      // Сбрасываем скорость игрока и его направление
                      physicsBody.velocity = .zero
@@ -241,4 +270,55 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             }
         }
     }
+    
+    func showCustomAlert() {
+        // Создаем фон для окна оповещения
+        let alertBackground = SKSpriteNode(color: .black, size: CGSize(width: 400, height: 200))
+        alertBackground.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        alertBackground.alpha = 0.8  // Прозрачность фона
+        alertBackground.zPosition = 1000  // Слой поверх других элементов
+        addChild(alertBackground)
+        
+        // Создаем текст с результатами игры
+        let scoreLabel = SKLabelNode(fontNamed: "Chalkduster")
+        scoreLabel.fontSize = 30
+        scoreLabel.text = "Your score: \(score)"
+        scoreLabel.position = CGPoint(x: 0, y: 40)
+        scoreLabel.zPosition = 1001
+        alertBackground.addChild(scoreLabel)
+        
+        // Создаем текст с предложением начать игру заново
+        let messageLabel = SKLabelNode(fontNamed: "Chalkduster")
+        messageLabel.fontSize = 20
+        messageLabel.text = "Press Start to New Game"
+        messageLabel.position = CGPoint(x: 0, y: -20)
+        messageLabel.zPosition = 1001
+        alertBackground.addChild(messageLabel)
+        
+        // Создаем кнопку для начала новой игры
+        let button = SKSpriteNode(color: .green, size: CGSize(width: 200, height: 50))
+        button.position = CGPoint(x: 0, y: -70)
+        button.zPosition = 1001
+        button.name = "startNewGameButton"  // Добавляем имя кнопке для упрощенного обнаружения
+        alertBackground.addChild(button)
+        
+        // Добавляем текст на кнопку
+        let buttonText = SKLabelNode(fontNamed: "Chalkduster")
+        buttonText.fontSize = 20
+        buttonText.text = "Start Next level\(level)"
+        buttonText.position = CGPoint(x: 0, y: 0)
+        buttonText.zPosition = 1002
+        button.addChild(buttonText)
+    }
+    
+    func newGame() {
+        print("restartGame - \(level)")  // Печатает текущий уровень, на котором закончена игра
+        let newScene = GameScene(size: self.size)  // Новый экземпляр GameScene
+        newScene.level = self.level  // Передаем текущий уровень
+        newScene.scaleMode = self.scaleMode
+
+        let transition = SKTransition.fade(withDuration: 1.0)
+        self.view?.presentScene(newScene, transition: transition)
+    }
+
 }

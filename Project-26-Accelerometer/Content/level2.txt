@@ -1,7 +1,7 @@
 xxxxxxxxxxxxxxxx
 x xs      xs  sx
 x xxxxxx vx vv x
-x    f   gx vv x
+x        gx vv x
 x xxx xxxxx    x
 xsxvxs      xv x
 xvxsxxxxxxxxxv x
